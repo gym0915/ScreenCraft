@@ -21,6 +21,24 @@ final class ScreenCraftUITests: XCTestCase {
     }
 
     @MainActor
+    func testMicrophoneSpikeControlsAreReachableByScrolling() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        let scrollView = app.scrollViews.firstMatch
+        XCTAssertTrue(scrollView.waitForExistence(timeout: 2))
+
+        let refreshMicrophonesButton = app.buttons["Refresh Microphones"]
+        XCTAssertTrue(refreshMicrophonesButton.waitForExistence(timeout: 2))
+
+        if !refreshMicrophonesButton.isHittable {
+            scrollView.swipeUp()
+        }
+
+        XCTAssertTrue(refreshMicrophonesButton.isHittable)
+    }
+
+    @MainActor
     func testLaunchPerformance() throws {
         // 启动性能测试保留 Xcode 模板行为，用来观察基础脚手架是否引入明显启动回退。
         measure(metrics: [XCTApplicationLaunchMetric()]) {

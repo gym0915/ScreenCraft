@@ -10,13 +10,16 @@ struct HomeView: View {
 
     var body: some View {
         // 初始 Home 是工程状态面板，优先展示依赖注入和权限 mock 是否接通。
-        VStack(alignment: .leading, spacing: 24) {
-            header
-            permissionSection
-            spikeSection
-            microphoneSpikeSection
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                header
+                permissionSection
+                spikeSection
+                microphoneSpikeSection
+            }
+            .padding(32)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        .padding(32)
         .frame(minWidth: 820, minHeight: 620, alignment: .topLeading)
         .task {
             await viewModel.loadFoundationState()
