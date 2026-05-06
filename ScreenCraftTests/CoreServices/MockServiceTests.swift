@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import Testing
 @testable import ScreenCraft
@@ -101,6 +102,14 @@ struct MockServiceTests {
                 outputDirectory: outputDirectory
             )
         }
+    }
+
+    @Test func avFoundationAudioRecorderSettingsUseM4AAACDefaults() {
+        let settings = AVFoundationAudioInputService.defaultRecorderSettings
+
+        #expect(settings[AVFormatIDKey] as? Int == Int(kAudioFormatMPEG4AAC))
+        #expect(settings[AVSampleRateKey] as? Double == 48_000)
+        #expect(settings[AVNumberOfChannelsKey] as? Int == 1)
     }
 
     @Test func mockMouseEventServiceStartsWithoutEvents() async {

@@ -33,11 +33,11 @@ final class AppEnvironment: ObservableObject {
         projectStore: MockProjectStore()
     )
 
-    // Spike 环境只替换屏幕录制链路；麦克风、鼠标事件和项目持久化仍保持 mock，避免扩大系统权限面。
+    // Spike 环境接入真实屏幕和麦克风服务；鼠标事件和项目持久化仍保持 mock，避免扩大验证范围。
     static let spike = AppEnvironment(
         permissionManager: SystemPermissionManager(),
         screenCaptureService: ScreenCaptureKitScreenCaptureService(),
-        audioInputService: MockAudioInputService(),
+        audioInputService: AVFoundationAudioInputService(),
         mouseEventService: MockMouseEventService(),
         projectStore: MockProjectStore()
     )
