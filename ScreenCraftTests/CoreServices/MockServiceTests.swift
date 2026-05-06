@@ -31,11 +31,11 @@ struct MockServiceTests {
         #expect(await service.recordingState() == .idle)
     }
 
-    @Test func mockAudioInputServiceProvidesPlaceholderDevice() async {
+    @Test func mockAudioInputServiceProvidesPlaceholderDevice() async throws {
         let service = MockAudioInputService()
 
         // 占位设备让服务边界可测试，同时不依赖开发机是否接入麦克风。
-        let devices = await service.availableInputDevices()
+        let devices = try await service.availableInputDevices()
 
         #expect(devices == [AudioInputDevice(id: "mock-microphone", name: "Mock Microphone", isDefault: true)])
     }
@@ -62,6 +62,45 @@ struct MockServiceTests {
 
         #expect(AudioRecordingState.recording(session) == .recording(session))
         #expect(result.fileSizeBytes == 1024)
+    }
+
+    @Test func mockAudioServiceRecordsMicrophoneFile() async throws {
+        let service = MockAudioInputService()
+        let outputDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ScreenCraftTests", isDirectory: true)
+
+        let session = try await service.startRecording(
+            deviceID: "mock-microphone",
+            outputDirectory: outputDirectory
+        )
+        #expect(session.outputURL.pathExtension == "m4a")
+        #expect(await service.recordingState() == .recording(session))
+
+        let result = try await service.stopRecording()
+        #expect(result.session == session)
+        #expect(result.session.outputURL.pathExtension == "m4a")
+        #expect(await service.recordingState() == .idle)
+    }
+
+    @Test func mockAudioServiceRejectsInvalidRecordingTransitions() async throws {
+        let service = MockAudioInputService()
+        let outputDirectory = FileManager.default.temporaryDirectory
+
+        await #expect(throws: AudioInputServiceError.notRecording) {
+            try await service.stopRecording()
+        }
+
+        _ = try await service.startRecording(
+            deviceID: "mock-microphone",
+            outputDirectory: outputDirectory
+        )
+
+        await #expect(throws: AudioInputServiceError.alreadyRecording) {
+            try await service.startRecording(
+                deviceID: "mock-microphone",
+                outputDirectory: outputDirectory
+            )
+        }
     }
 
     @Test func mockMouseEventServiceStartsWithoutEvents() async {

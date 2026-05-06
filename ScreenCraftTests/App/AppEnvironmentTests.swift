@@ -19,7 +19,7 @@ struct AppEnvironmentTests {
         let screenRecordingStatus = await environment.permissionManager.status(for: .screenRecording)
         let cameraStatus = await environment.permissionManager.status(for: .camera)
         let recordingState = await environment.screenCaptureService.recordingState()
-        let audioDevices = await environment.audioInputService.availableInputDevices()
+        let audioDevices = try await environment.audioInputService.availableInputDevices()
         let mouseEvents = await environment.mouseEventService.recordedEvents()
         let projects = try await environment.projectStore.recentProjects()
 

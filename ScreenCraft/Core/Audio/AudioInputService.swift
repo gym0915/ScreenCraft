@@ -43,12 +43,23 @@ enum AudioInputServiceError: LocalizedError, Equatable {
 }
 
 protocol AudioInputServicing {
-    // 保持 async 形状，以便后续真实设备枚举实现不改变调用方接口。
-    func availableInputDevices() async -> [AudioInputDevice]
+    // 保持 async throws 形状，以便真实设备枚举、权限失败和硬件错误能沿同一服务边界返回。
+    func recordingState() async -> AudioRecordingState
+    func availableInputDevices() async throws -> [AudioInputDevice]
+    func startRecording(deviceID: String?, outputDirectory: URL) async throws -> AudioRecordingSession
+    func stopRecording() async throws -> AudioRecordingResult
 }
 
-struct MockAudioInputService: AudioInputServicing {
-    func availableInputDevices() async -> [AudioInputDevice] {
+@MainActor
+final class MockAudioInputService: AudioInputServicing {
+    private var state: AudioRecordingState = .idle
+    private var activeSession: AudioRecordingSession?
+
+    func recordingState() async -> AudioRecordingState {
+        state
+    }
+
+    func availableInputDevices() async throws -> [AudioInputDevice] {
         // 使用稳定占位设备，测试和 Home UI 不依赖当前机器的真实麦克风配置。
         [
             AudioInputDevice(
@@ -57,5 +68,39 @@ struct MockAudioInputService: AudioInputServicing {
                 isDefault: true
             )
         ]
+    }
+
+    func startRecording(
+        deviceID: String?,
+        outputDirectory: URL
+    ) async throws -> AudioRecordingSession {
+        guard case .idle = state else {
+            throw AudioInputServiceError.alreadyRecording
+        }
+
+        let session = AudioRecordingSession(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+            deviceID: deviceID,
+            outputURL: outputDirectory.appendingPathComponent("microphone-mock.m4a"),
+            startedAt: Date(timeIntervalSince1970: 0)
+        )
+        activeSession = session
+        state = .recording(session)
+        return session
+    }
+
+    func stopRecording() async throws -> AudioRecordingResult {
+        guard let activeSession else {
+            throw AudioInputServiceError.notRecording
+        }
+
+        self.activeSession = nil
+        state = .idle
+
+        return AudioRecordingResult(
+            session: activeSession,
+            duration: 0,
+            fileSizeBytes: 0
+        )
     }
 }
