@@ -14,6 +14,7 @@ struct HomeView: View {
             header
             permissionSection
             spikeSection
+            microphoneSpikeSection
         }
         .padding(32)
         .frame(minWidth: 820, minHeight: 620, alignment: .topLeading)
@@ -161,6 +162,100 @@ struct HomeView: View {
                     Link(
                         "Open Screen Recording Settings",
                         destination: HomeViewModel.screenRecordingPermissionURL
+                    )
+                    .font(.caption)
+                }
+            }
+        }
+        .padding(12)
+        .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var microphoneSpikeSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Microphone Spike")
+                .font(.headline)
+
+            HStack(spacing: 10) {
+                Button {
+                    runSpikeAction {
+                        try await viewModel.refreshAudioInputDevices()
+                    }
+                } label: {
+                    Label("Refresh Microphones", systemImage: "arrow.clockwise")
+                }
+                .disabled(viewModel.isRefreshingAudioInputDevices || viewModel.isRecordingMicrophone)
+
+                Button {
+                    runSpikeAction {
+                        try await viewModel.startMicrophoneRecording()
+                    }
+                } label: {
+                    Label("Start Microphone Recording", systemImage: "mic.circle")
+                }
+                .disabled(!viewModel.canStartMicrophoneRecording)
+
+                Button {
+                    runSpikeAction {
+                        try await viewModel.stopMicrophoneRecording()
+                    }
+                } label: {
+                    Label("Stop Microphone Recording", systemImage: "stop.circle")
+                }
+                .disabled(!viewModel.canStopMicrophoneRecording)
+            }
+
+            audioInputPicker
+            audioStatusPanel
+        }
+        .frame(maxWidth: 720, alignment: .leading)
+    }
+
+    private var audioInputPicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Microphones")
+                .font(.subheadline)
+                .fontWeight(.medium)
+
+            Picker("Microphone", selection: $viewModel.selectedAudioInputDeviceID) {
+                if viewModel.audioInputDevices.isEmpty {
+                    Text("No microphones loaded").tag(String?.none)
+                }
+
+                ForEach(viewModel.audioInputDevices) { device in
+                    Text(device.isDefault ? "\(device.name) (Default)" : device.name)
+                        .tag(Optional(device.id))
+                }
+            }
+            .labelsHidden()
+            .frame(maxWidth: 520, alignment: .leading)
+        }
+    }
+
+    private var audioStatusPanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(viewModel.audioSpikeStatusMessage)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+
+            if let audioOutputFilePath = viewModel.audioOutputFilePath {
+                Text(audioOutputFilePath)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .textSelection(.enabled)
+            }
+
+            if let audioPermissionHelpMessage = viewModel.audioPermissionHelpMessage {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(audioPermissionHelpMessage)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Link(
+                        "Open Microphone Settings",
+                        destination: SystemPermissionManager.microphonePermissionURL
                     )
                     .font(.caption)
                 }
