@@ -1,3 +1,4 @@
+import AVFoundation
 import CoreGraphics
 
 protocol PermissionManaging {
@@ -19,11 +20,27 @@ struct MockPermissionManager: PermissionManaging {
 }
 
 struct SystemPermissionManager: PermissionManaging {
+    static let microphonePermissionHelp = "System Settings -> Privacy & Security -> Microphone"
+    static let microphonePermissionURL = URL(
+        string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone"
+    )!
+
     func status(for type: PermissionType) async -> PermissionStatus {
         switch type {
         case .screenRecording:
             return CGPreflightScreenCaptureAccess() ? .granted : .denied
-        case .microphone, .accessibility, .inputMonitoring:
+        case .microphone:
+            switch AVCaptureDevice.authorizationStatus(for: .audio) {
+            case .authorized:
+                return .granted
+            case .notDetermined:
+                return .notDetermined
+            case .denied, .restricted:
+                return .denied
+            @unknown default:
+                return .unknown
+            }
+        case .accessibility, .inputMonitoring:
             return .unknown
         case .camera:
             // camera 不进入本次 MVP/Spike UI，真实环境也保持 unsupported。
@@ -35,7 +52,10 @@ struct SystemPermissionManager: PermissionManaging {
         switch type {
         case .screenRecording:
             return CGRequestScreenCaptureAccess() ? .granted : .denied
-        case .microphone, .accessibility, .inputMonitoring:
+        case .microphone:
+            let granted = await AVCaptureDevice.requestAccess(for: .audio)
+            return granted ? .granted : .denied
+        case .accessibility, .inputMonitoring:
             return .unknown
         case .camera:
             return .unsupported

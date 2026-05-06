@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import ScreenCraft
 
@@ -20,5 +21,10 @@ struct PermissionStatusTests {
 
         #expect(status == .unsupported)
         #expect(requestResult == .unsupported)
+    }
+
+    @Test func microphonePermissionHelpTextPointsToSystemSettings() {
+        #expect(SystemPermissionManager.microphonePermissionHelp == "System Settings -> Privacy & Security -> Microphone")
+        #expect(SystemPermissionManager.microphonePermissionURL.absoluteString.contains("Privacy_Microphone"))
     }
 }
