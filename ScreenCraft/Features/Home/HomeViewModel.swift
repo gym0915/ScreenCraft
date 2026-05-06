@@ -26,6 +26,13 @@ final class HomeViewModel: ObservableObject {
     @Published private(set) var outputFilePath: String?
     @Published private(set) var spikeStatusMessage = "Ready to refresh windows."
     @Published private(set) var permissionHelpMessage: String?
+    @Published private(set) var audioInputDevices: [AudioInputDevice] = []
+    @Published var selectedAudioInputDeviceID: String?
+    @Published private(set) var isRefreshingAudioInputDevices = false
+    @Published private(set) var isRecordingMicrophone = false
+    @Published private(set) var audioOutputFilePath: String?
+    @Published private(set) var audioSpikeStatusMessage = "Ready to refresh microphones."
+    @Published private(set) var audioPermissionHelpMessage: String?
 
     init(environment: AppEnvironment) {
         self.environment = environment
@@ -41,6 +48,14 @@ final class HomeViewModel: ObservableObject {
 
     var canStopWindowRecording: Bool {
         isRecordingWindow
+    }
+
+    var canStartMicrophoneRecording: Bool {
+        selectedAudioInputDeviceID != nil && !isRecordingMicrophone
+    }
+
+    var canStopMicrophoneRecording: Bool {
+        isRecordingMicrophone
     }
 
     func loadFoundationState() async {
@@ -139,8 +154,69 @@ final class HomeViewModel: ObservableObject {
         }
     }
 
+    func refreshAudioInputDevices() async throws {
+        isRefreshingAudioInputDevices = true
+        defer { isRefreshingAudioInputDevices = false }
+
+        do {
+            let devices = try await environment.audioInputService.availableInputDevices()
+            audioInputDevices = devices
+
+            if selectedAudioInputDeviceID == nil || !devices.contains(where: { $0.id == selectedAudioInputDeviceID }) {
+                selectedAudioInputDeviceID = devices.first(where: \.isDefault)?.id ?? devices.first?.id
+            }
+
+            audioPermissionHelpMessage = nil
+            audioSpikeStatusMessage = devices.isEmpty ? "No microphones found." : "Found \(devices.count) microphones."
+        } catch {
+            handleAudioSpikeError(error)
+            throw error
+        }
+    }
+
+    func startMicrophoneRecording() async throws {
+        guard selectedAudioInputDeviceID != nil else {
+            audioSpikeStatusMessage = "Select a microphone before recording."
+            throw AudioInputServiceError.deviceUnavailable
+        }
+
+        do {
+            let session = try await environment.audioInputService.startRecording(
+                deviceID: selectedAudioInputDeviceID,
+                outputDirectory: Self.defaultAudioSpikeOutputDirectory
+            )
+            isRecordingMicrophone = true
+            audioOutputFilePath = nil
+            audioPermissionHelpMessage = nil
+            audioSpikeStatusMessage = "Recording microphone to \(session.outputURL.path)."
+        } catch {
+            handleAudioSpikeError(error)
+            throw error
+        }
+    }
+
+    func stopMicrophoneRecording() async throws {
+        do {
+            let result = try await environment.audioInputService.stopRecording()
+            isRecordingMicrophone = false
+            audioOutputFilePath = result.session.outputURL.path
+            audioSpikeStatusMessage = "Saved microphone recording to \(result.session.outputURL.path)."
+        } catch {
+            handleAudioSpikeError(error)
+            throw error
+        }
+    }
+
     private var selectedCaptureSource: ScreenCaptureSource? {
         captureSources.first { $0.id == selectedCaptureSourceID }
+    }
+
+    private func handleAudioSpikeError(_ error: Error) {
+        if case AudioInputServiceError.permissionDenied = error {
+            audioPermissionHelpMessage = SystemPermissionManager.microphonePermissionHelp
+        }
+
+        audioSpikeStatusMessage = error.localizedDescription
     }
 
     static let screenRecordingPermissionHelp = "System Settings -> Privacy & Security -> Screen & System Audio Recording"
@@ -151,4 +227,8 @@ final class HomeViewModel: ObservableObject {
     private static let defaultSpikeOutputDirectory = FileManager.default.temporaryDirectory
         .appendingPathComponent("ScreenCraft", isDirectory: true)
         .appendingPathComponent("WindowCaptureSpike", isDirectory: true)
+
+    private static let defaultAudioSpikeOutputDirectory = FileManager.default.temporaryDirectory
+        .appendingPathComponent("ScreenCraft", isDirectory: true)
+        .appendingPathComponent("AudioSpike", isDirectory: true)
 }

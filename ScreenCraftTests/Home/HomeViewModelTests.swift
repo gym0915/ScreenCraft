@@ -48,4 +48,26 @@ struct HomeViewModelTests {
         #expect(viewModel.outputFilePath?.hasSuffix(".mov") == true)
         #expect(viewModel.canStopWindowRecording == false)
     }
+
+    @Test func microphoneSpikeFlowRefreshesDevicesAndPublishesOutputPath() async throws {
+        let viewModel = HomeViewModel(environment: .mock)
+
+        try await viewModel.refreshAudioInputDevices()
+
+        #expect(viewModel.audioInputDevices.map(\.name) == ["Mock Microphone"])
+        #expect(viewModel.selectedAudioInputDeviceID == "mock-microphone")
+        #expect(viewModel.canStartMicrophoneRecording == true)
+
+        try await viewModel.startMicrophoneRecording()
+
+        #expect(viewModel.isRecordingMicrophone == true)
+        #expect(viewModel.canStartMicrophoneRecording == false)
+        #expect(viewModel.canStopMicrophoneRecording == true)
+
+        try await viewModel.stopMicrophoneRecording()
+
+        #expect(viewModel.isRecordingMicrophone == false)
+        #expect(viewModel.audioOutputFilePath?.hasSuffix(".m4a") == true)
+        #expect(viewModel.canStopMicrophoneRecording == false)
+    }
 }
