@@ -33,6 +33,11 @@ final class HomeViewModel: ObservableObject {
     @Published private(set) var audioOutputFilePath: String?
     @Published private(set) var audioSpikeStatusMessage = "Ready to refresh microphones."
     @Published private(set) var audioPermissionHelpMessage: String?
+    @Published private(set) var isRecordingMouseEvents = false
+    @Published private(set) var mouseEventCount = 0
+    @Published private(set) var mouseEventDebugLines: [String] = []
+    @Published private(set) var mouseEventSpikeStatusMessage = "Ready to record mouse events."
+    @Published private(set) var mouseEventPermissionHelpMessage: String?
 
     init(environment: AppEnvironment) {
         self.environment = environment
@@ -56,6 +61,14 @@ final class HomeViewModel: ObservableObject {
 
     var canStopMicrophoneRecording: Bool {
         isRecordingMicrophone
+    }
+
+    var canStartMouseEventRecording: Bool {
+        !isRecordingMouseEvents
+    }
+
+    var canStopMouseEventRecording: Bool {
+        isRecordingMouseEvents
     }
 
     func loadFoundationState() async {
@@ -207,6 +220,36 @@ final class HomeViewModel: ObservableObject {
         }
     }
 
+    func startMouseEventRecording() async throws {
+        do {
+            let captureRegion = environment.mouseEventCaptureRegion()
+            let session = try await environment.mouseEventService.startRecording(
+                captureRegion: captureRegion
+            )
+            isRecordingMouseEvents = true
+            mouseEventCount = 0
+            mouseEventDebugLines = []
+            mouseEventPermissionHelpMessage = nil
+            mouseEventSpikeStatusMessage = "Recording mouse events in region \(Self.regionSummary(session.captureRegion))."
+        } catch {
+            handleMouseEventSpikeError(error)
+            throw error
+        }
+    }
+
+    func stopMouseEventRecording() async throws {
+        do {
+            let result = try await environment.mouseEventService.stopRecording()
+            isRecordingMouseEvents = false
+            mouseEventCount = result.events.count
+            mouseEventDebugLines = result.events.map(Self.debugLine(for:))
+            mouseEventSpikeStatusMessage = "Recorded \(result.events.count) mouse events."
+        } catch {
+            handleMouseEventSpikeError(error)
+            throw error
+        }
+    }
+
     private var selectedCaptureSource: ScreenCaptureSource? {
         captureSources.first { $0.id == selectedCaptureSourceID }
     }
@@ -219,9 +262,47 @@ final class HomeViewModel: ObservableObject {
         audioSpikeStatusMessage = error.localizedDescription
     }
 
+    private func handleMouseEventSpikeError(_ error: Error) {
+        if case MouseEventServiceError.permissionDenied = error {
+            mouseEventPermissionHelpMessage = Self.mouseEventPermissionHelp
+        }
+
+        mouseEventSpikeStatusMessage = error.localizedDescription
+    }
+
+    private static func debugLine(for event: MouseEvent) -> String {
+        let recordingSummary = event.recordingLocation.map {
+            String(format: "recording=(%.1f, %.1f)", $0.x, $0.y)
+        } ?? "recording=outside"
+
+        return String(
+            format: "%@ t=%.2f global=(%.1f, %.1f) %@",
+            event.kind.rawValue,
+            event.timestamp,
+            event.globalLocation.x,
+            event.globalLocation.y,
+            recordingSummary
+        )
+    }
+
+    private static func regionSummary(_ region: MouseEventCaptureRegion) -> String {
+        String(
+            format: "origin=(%.1f, %.1f), size=(%.1f, %.1f), scale=%.1f",
+            region.origin.x,
+            region.origin.y,
+            region.size.width,
+            region.size.height,
+            region.backingScaleFactor
+        )
+    }
+
     static let screenRecordingPermissionHelp = "System Settings -> Privacy & Security -> Screen & System Audio Recording"
     static let screenRecordingPermissionURL = URL(
         string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+    )!
+    static let mouseEventPermissionHelp = "System Settings -> Privacy & Security -> Input Monitoring or Accessibility"
+    static let inputMonitoringPermissionURL = URL(
+        string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
     )!
 
     private static let defaultSpikeOutputDirectory = FileManager.default.temporaryDirectory

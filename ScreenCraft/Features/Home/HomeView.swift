@@ -16,6 +16,7 @@ struct HomeView: View {
                 permissionSection
                 spikeSection
                 microphoneSpikeSection
+                mouseEventSpikeSection
             }
             .padding(32)
             .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -259,6 +260,77 @@ struct HomeView: View {
                     Link(
                         "Open Microphone Settings",
                         destination: SystemPermissionManager.microphonePermissionURL
+                    )
+                    .font(.caption)
+                }
+            }
+        }
+        .padding(12)
+        .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var mouseEventSpikeSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Mouse Event Spike")
+                .font(.headline)
+
+            HStack(spacing: 10) {
+                Button {
+                    runSpikeAction {
+                        try await viewModel.startMouseEventRecording()
+                    }
+                } label: {
+                    Label("Start Mouse Events", systemImage: "cursorarrow.click")
+                }
+                .disabled(!viewModel.canStartMouseEventRecording)
+
+                Button {
+                    runSpikeAction {
+                        try await viewModel.stopMouseEventRecording()
+                    }
+                } label: {
+                    Label("Stop Mouse Events", systemImage: "stop.circle")
+                }
+                .disabled(!viewModel.canStopMouseEventRecording)
+            }
+
+            mouseEventStatusPanel
+        }
+        .frame(maxWidth: 720, alignment: .leading)
+    }
+
+    private var mouseEventStatusPanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(viewModel.mouseEventSpikeStatusMessage)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+
+            Text("Events: \(viewModel.mouseEventCount)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            if !viewModel.mouseEventDebugLines.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(viewModel.mouseEventDebugLines, id: \.self) { line in
+                        Text(line)
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .textSelection(.enabled)
+                    }
+                }
+            }
+
+            if let mouseEventPermissionHelpMessage = viewModel.mouseEventPermissionHelpMessage {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(mouseEventPermissionHelpMessage)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Link(
+                        "Open Input Monitoring Settings",
+                        destination: HomeViewModel.inputMonitoringPermissionURL
                     )
                     .font(.caption)
                 }

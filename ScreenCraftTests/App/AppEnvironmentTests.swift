@@ -21,6 +21,7 @@ struct AppEnvironmentTests {
         let recordingState = await environment.screenCaptureService.recordingState()
         let audioDevices = try await environment.audioInputService.availableInputDevices()
         let mouseEvents = await environment.mouseEventService.recordedEvents()
+        let mouseEventCaptureRegion = environment.mouseEventCaptureRegion()
         let projects = try await environment.projectStore.recentProjects()
 
         #expect(screenRecordingStatus == .unknown)
@@ -28,6 +29,7 @@ struct AppEnvironmentTests {
         #expect(recordingState == .idle)
         #expect(audioDevices == [AudioInputDevice(id: "mock-microphone", name: "Mock Microphone", isDefault: true)])
         #expect(mouseEvents.isEmpty)
+        #expect(mouseEventCaptureRegion == .debugRetinaFixture)
         #expect(projects.isEmpty)
     }
 }

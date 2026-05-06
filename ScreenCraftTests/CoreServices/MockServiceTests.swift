@@ -121,6 +121,49 @@ struct MockServiceTests {
         #expect(events.isEmpty)
     }
 
+    @Test func mockMouseEventServiceRecordsMappedEvents() async throws {
+        let region = MouseEventCaptureRegion(
+            origin: MouseEventLocation(x: 100, y: 200),
+            size: MouseEventSize(width: 640, height: 360),
+            backingScaleFactor: 2
+        )
+        let sourceEvent = MouseEvent(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000201")!,
+            kind: .leftClick,
+            timestamp: 3.5,
+            globalLocation: MouseEventLocation(x: 120, y: 230)
+        )
+        let service = MockMouseEventService(seedEvents: [sourceEvent])
+
+        let session = try await service.startRecording(captureRegion: region)
+        #expect(await service.recordingState() == .recording(session))
+
+        let result = try await service.stopRecording()
+        #expect(result.session == session)
+        #expect(result.events.map(\.recordingLocation) == [MouseEventLocation(x: 40, y: 60)])
+        #expect(await service.recordedEvents() == result.events)
+        #expect(await service.recordingState() == .idle)
+    }
+
+    @Test func mockMouseEventServiceRejectsInvalidRecordingTransitions() async throws {
+        let service = MockMouseEventService()
+        let region = MouseEventCaptureRegion(
+            origin: MouseEventLocation(x: 0, y: 0),
+            size: MouseEventSize(width: 100, height: 100),
+            backingScaleFactor: 1
+        )
+
+        await #expect(throws: MouseEventServiceError.notRecording) {
+            try await service.stopRecording()
+        }
+
+        _ = try await service.startRecording(captureRegion: region)
+
+        await #expect(throws: MouseEventServiceError.alreadyRecording) {
+            try await service.startRecording(captureRegion: region)
+        }
+    }
+
     @Test func mockProjectStorePersistsProjectsInMemory() async throws {
         let store = MockProjectStore()
         let project = RecordingProject(name: "Mock Project", duration: 3)

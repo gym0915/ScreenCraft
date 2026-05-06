@@ -70,4 +70,23 @@ struct HomeViewModelTests {
         #expect(viewModel.audioOutputFilePath?.hasSuffix(".m4a") == true)
         #expect(viewModel.canStopMicrophoneRecording == false)
     }
+
+    @Test func mouseEventSpikeFlowPublishesMappedClickEvidence() async throws {
+        let viewModel = HomeViewModel(environment: .mock)
+
+        try await viewModel.startMouseEventRecording()
+
+        #expect(viewModel.isRecordingMouseEvents == true)
+        #expect(viewModel.canStartMouseEventRecording == false)
+        #expect(viewModel.canStopMouseEventRecording == true)
+
+        try await viewModel.stopMouseEventRecording()
+
+        #expect(viewModel.isRecordingMouseEvents == false)
+        #expect(viewModel.mouseEventCount == 1)
+        #expect(viewModel.mouseEventDebugLines == [
+            "leftClick t=3.50 global=(120.0, 230.0) recording=(40.0, 60.0)"
+        ])
+        #expect(viewModel.canStopMouseEventRecording == false)
+    }
 }

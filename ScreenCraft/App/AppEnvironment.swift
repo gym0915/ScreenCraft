@@ -8,6 +8,7 @@ final class AppEnvironment: ObservableObject {
     let screenCaptureService: ScreenCaptureServicing
     let audioInputService: AudioInputServicing
     let mouseEventService: MouseEventServicing
+    let mouseEventCaptureRegion: () -> MouseEventCaptureRegion
     let projectStore: ProjectStoring
 
     init(
@@ -15,30 +16,42 @@ final class AppEnvironment: ObservableObject {
         screenCaptureService: ScreenCaptureServicing,
         audioInputService: AudioInputServicing,
         mouseEventService: MouseEventServicing,
+        mouseEventCaptureRegion: @escaping () -> MouseEventCaptureRegion,
         projectStore: ProjectStoring
     ) {
         self.permissionManager = permissionManager
         self.screenCaptureService = screenCaptureService
         self.audioInputService = audioInputService
         self.mouseEventService = mouseEventService
+        self.mouseEventCaptureRegion = mouseEventCaptureRegion
         self.projectStore = projectStore
     }
 
     // 基础脚手架阶段只注入 mock，确保启动 App 不触发系统权限弹窗或真实硬件访问。
-    static let mock = AppEnvironment(
-        permissionManager: MockPermissionManager(),
-        screenCaptureService: MockScreenCaptureService(),
-        audioInputService: MockAudioInputService(),
-        mouseEventService: MockMouseEventService(),
-        projectStore: MockProjectStore()
-    )
+    static var mock: AppEnvironment {
+        AppEnvironment(
+            permissionManager: MockPermissionManager(),
+            screenCaptureService: MockScreenCaptureService(),
+            audioInputService: MockAudioInputService(),
+            mouseEventService: MockMouseEventService(seedEvents: [
+                MouseEvent(
+                    kind: .leftClick,
+                    timestamp: 3.5,
+                    globalLocation: MouseEventLocation(x: 120, y: 230)
+                )
+            ]),
+            mouseEventCaptureRegion: { .debugRetinaFixture },
+            projectStore: MockProjectStore()
+        )
+    }
 
-    // Spike 环境接入真实屏幕和麦克风服务；鼠标事件和项目持久化仍保持 mock，避免扩大验证范围。
+    // Spike 环境接入真实屏幕、麦克风和鼠标事件服务；项目持久化仍保持 mock，避免扩大验证范围。
     static let spike = AppEnvironment(
         permissionManager: SystemPermissionManager(),
         screenCaptureService: ScreenCaptureKitScreenCaptureService(),
         audioInputService: AVFoundationAudioInputService(),
-        mouseEventService: MockMouseEventService(),
+        mouseEventService: CoreGraphicsEventTapMouseEventService(),
+        mouseEventCaptureRegion: { .mainDisplay() },
         projectStore: MockProjectStore()
     )
 }
