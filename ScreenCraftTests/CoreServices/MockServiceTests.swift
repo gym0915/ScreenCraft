@@ -40,6 +40,30 @@ struct MockServiceTests {
         #expect(devices == [AudioInputDevice(id: "mock-microphone", name: "Mock Microphone", isDefault: true)])
     }
 
+    @Test func audioRecordingErrorsHaveReadableDescriptions() {
+        #expect(AudioInputServiceError.alreadyRecording.localizedDescription == "A microphone recording is already in progress.")
+        #expect(AudioInputServiceError.notRecording.localizedDescription == "No microphone recording is currently in progress.")
+        #expect(AudioInputServiceError.deviceUnavailable.localizedDescription == "Selected microphone is no longer available.")
+    }
+
+    @Test func audioRecordingSessionAndResultAreEquatable() {
+        let outputURL = URL(fileURLWithPath: "/tmp/microphone.m4a")
+        let session = AudioRecordingSession(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+            deviceID: "device-1",
+            outputURL: outputURL,
+            startedAt: Date(timeIntervalSince1970: 10)
+        )
+        let result = AudioRecordingResult(
+            session: session,
+            duration: 5,
+            fileSizeBytes: 1024
+        )
+
+        #expect(AudioRecordingState.recording(session) == .recording(session))
+        #expect(result.fileSizeBytes == 1024)
+    }
+
     @Test func mockMouseEventServiceStartsWithoutEvents() async {
         let service = MockMouseEventService()
 
