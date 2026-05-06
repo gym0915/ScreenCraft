@@ -1,9 +1,4 @@
-//
-//  ScreenCraftUITestsLaunchTests.swift
-//  ScreenCraftUITests
-//
-//  Created by steve on 2026/5/1.
-//
+// ScreenCraftUITestsLaunchTests 生成启动截图，作为早期 UI 基线。
 
 import XCTest
 
@@ -22,9 +17,7 @@ final class ScreenCraftUITestsLaunchTests: XCTestCase {
         let app = XCUIApplication()
         app.launch()
 
-        // Insert steps here to perform after app launch but before taking a screenshot,
-        // such as logging into a test account or navigating somewhere in the app
-
+        // 启动截图作为 UI 基线产物，后续 Home 页面成型后可用于人工比对。
         let attachment = XCTAttachment(screenshot: app.screenshot())
         attachment.name = "Launch Screen"
         attachment.lifetime = .keepAlways

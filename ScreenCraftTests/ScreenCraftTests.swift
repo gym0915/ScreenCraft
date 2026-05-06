@@ -1,9 +1,4 @@
-//
-//  ScreenCraftTests.swift
-//  ScreenCraftTests
-//
-//  Created by steve on 2026/5/1.
-//
+// ScreenCraftTests 保留测试目标的基础健康检查。
 
 import Testing
 @testable import ScreenCraft
@@ -11,7 +6,7 @@ import Testing
 struct ScreenCraftTests {
 
     @Test func example() async throws {
-        // Write your test here and use APIs like `#expect(...)` to check expected conditions.
+        // 保留模板测试作为测试目标健康检查；具体模型和服务行为由分组测试覆盖。
     }
 
 }
