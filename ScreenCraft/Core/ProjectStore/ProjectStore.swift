@@ -5,6 +5,7 @@ protocol ProjectStoring: AnyObject {
     // 存储边界运行在 MainActor，当前调用方可以直接把结果映射到 SwiftUI 状态。
     func recentProjects() async throws -> [RecordingProject]
     func save(_ project: RecordingProject) async throws
+    func save(_ project: RecordingProject, mouseEvents: [MouseEvent]) async throws
 }
 
 @MainActor
@@ -41,10 +42,22 @@ final class FileSystemProjectStore: ProjectStoring {
     }
 
     func save(_ project: RecordingProject) async throws {
-        let packageURL = packageURL(for: project.id)
+        try await save(project, mouseEvents: [])
+    }
+
+    func save(_ project: RecordingProject, mouseEvents: [MouseEvent]) async throws {
+        let packageURL = packageURL(for: project)
         try createPackageDirectories(at: packageURL)
 
-        let data = try Self.encoder.encode(project)
+        if let mouseEventsPath = project.media.mouseEventsPath {
+            let eventsData = try JSONEncoder.screenCraft.encode(mouseEvents)
+            try eventsData.write(
+                to: packageURL.appendingPathComponent(mouseEventsPath),
+                options: [.atomic]
+            )
+        }
+
+        let data = try JSONEncoder.screenCraft.encode(project)
         try data.write(
             to: packageURL.appendingPathComponent(Self.manifestFileName),
             options: [.atomic]
@@ -67,6 +80,20 @@ final class FileSystemProjectStore: ProjectStoring {
         rootDirectory.appendingPathComponent("\(projectID.uuidString).screencraft", isDirectory: true)
     }
 
+    private func packageURL(for project: RecordingProject) -> URL {
+        if let mediaPackageURL = project.media.screenVideoURL?.screenCraftPackageAncestor,
+           mediaPackageURL.deletingLastPathComponent().standardizedFileURL == rootDirectory.standardizedFileURL {
+            return mediaPackageURL
+        }
+
+        if let mediaPackageURL = project.media.microphoneAudioURL?.screenCraftPackageAncestor,
+           mediaPackageURL.deletingLastPathComponent().standardizedFileURL == rootDirectory.standardizedFileURL {
+            return mediaPackageURL
+        }
+
+        return packageURL(for: project.id)
+    }
+
     private func createPackageDirectories(at packageURL: URL) throws {
         for directory in Self.packageDirectories {
             try fileManager.createDirectory(
@@ -84,18 +111,40 @@ final class FileSystemProjectStore: ProjectStoring {
         "cache/preview"
     ]
 
-    private static let encoder: JSONEncoder = {
+    private static let decoder = JSONDecoder.screenCraft
+}
+
+extension JSONEncoder {
+    static var screenCraft: JSONEncoder {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
         return encoder
-    }()
+    }
+}
 
-    private static let decoder: JSONDecoder = {
+extension JSONDecoder {
+    static var screenCraft: JSONDecoder {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return decoder
-    }()
+    }
+}
+
+private extension URL {
+    var screenCraftPackageAncestor: URL? {
+        var candidate = deletingLastPathComponent()
+
+        while candidate.path != candidate.deletingLastPathComponent().path {
+            if candidate.pathExtension == "screencraft" {
+                return candidate
+            }
+
+            candidate = candidate.deletingLastPathComponent()
+        }
+
+        return nil
+    }
 }
 
 @MainActor
@@ -113,6 +162,10 @@ final class MockProjectStore: ProjectStoring {
     }
 
     func save(_ project: RecordingProject) async throws {
+        projects.append(project)
+    }
+
+    func save(_ project: RecordingProject, mouseEvents: [MouseEvent]) async throws {
         projects.append(project)
     }
 }

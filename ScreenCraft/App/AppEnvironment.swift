@@ -45,13 +45,18 @@ final class AppEnvironment: ObservableObject {
         )
     }
 
-    // Spike 环境接入真实屏幕、麦克风和鼠标事件服务；项目持久化仍保持 mock，避免扩大验证范围。
+    // Spike 环境接入真实屏幕、麦克风、鼠标事件服务和本地项目包持久化。
     static let spike = AppEnvironment(
         permissionManager: SystemPermissionManager(),
         screenCaptureService: ScreenCaptureKitScreenCaptureService(),
         audioInputService: AVFoundationAudioInputService(),
         mouseEventService: CoreGraphicsEventTapMouseEventService(),
         mouseEventCaptureRegion: { .mainDisplay() },
-        projectStore: MockProjectStore()
+        projectStore: FileSystemProjectStore(rootDirectory: recordingPackageRootDirectory)
     )
+
+    static let recordingPackageRootDirectory = FileManager.default
+        .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("ScreenCraft", isDirectory: true)
+        .appendingPathComponent("Recordings", isDirectory: true)
 }

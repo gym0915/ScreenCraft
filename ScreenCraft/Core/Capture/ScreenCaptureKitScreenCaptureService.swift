@@ -13,6 +13,7 @@ final class ScreenCaptureKitScreenCaptureService: NSObject, ScreenCaptureServici
     private var activeStreamOutput: ScreenCaptureKitStreamOutput?
     private var activeRecordingOutput: SCRecordingOutput?
     private var activeRecordingDelegate: ScreenCaptureKitRecordingOutputDelegate?
+    private var activeConfiguration: ScreenRecordingConfiguration?
     private var activeOutputURL: URL?
     private var activeStartedAt: Date?
     private let videoSampleQueue = DispatchQueue(label: "ScreenCraft.ScreenCaptureKit.video")
@@ -92,7 +93,7 @@ final class ScreenCaptureKitScreenCaptureService: NSObject, ScreenCaptureServici
             throw ScreenCaptureServiceError.alreadyRecording
         }
 
-        let outputURL = configuration.screenVideoFileURL()
+        let outputURL = configuration.screenVideoURL
         try prepareOutputURL(outputURL)
         let captureSetup = try await captureSetup(for: configuration.source)
         let filter = captureSetup.filter
@@ -125,6 +126,7 @@ final class ScreenCaptureKitScreenCaptureService: NSObject, ScreenCaptureServici
         activeStreamOutput = streamOutput
         activeRecordingOutput = recordingOutput
         activeRecordingDelegate = recordingDelegate
+        activeConfiguration = configuration
         activeOutputURL = outputURL
         activeStartedAt = Date()
         state = .recording
@@ -147,6 +149,7 @@ final class ScreenCaptureKitScreenCaptureService: NSObject, ScreenCaptureServici
             throw ScreenCaptureServiceError.recordingFailed(error.localizedDescription)
         }
 
+        let sourceMetadata = activeConfiguration.map { RecordingSourceMetadata(source: $0.source) }
         cleanupRecordingState()
 
         return RecordingProject(
@@ -155,6 +158,7 @@ final class ScreenCaptureKitScreenCaptureService: NSObject, ScreenCaptureServici
                 screenVideoURL: activeOutputURL,
                 screenVideoPath: ScreenRecordingConfiguration.screenVideoRelativePath
             ),
+            source: sourceMetadata,
             duration: duration
         )
     }
@@ -282,6 +286,7 @@ final class ScreenCaptureKitScreenCaptureService: NSObject, ScreenCaptureServici
         activeStreamOutput = nil
         activeRecordingOutput = nil
         activeRecordingDelegate = nil
+        activeConfiguration = nil
         activeOutputURL = nil
         activeStartedAt = nil
         state = .idle

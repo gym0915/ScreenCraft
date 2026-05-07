@@ -34,4 +34,19 @@ struct RecordingProjectTests {
         #expect(project.timeline.duration == 8)
         #expect(project.timeline.zoomSegments.isEmpty)
     }
+
+    @Test func recordingProjectStoresCaptureSourceMetadata() {
+        let source = RecordingSourceMetadata(
+            id: "window-42",
+            kind: .window,
+            title: "Demo",
+            appName: "Safari",
+            geometry: CaptureSourceGeometry(originX: 10, originY: 20, width: 640, height: 360, scale: 2),
+            captureResolution: CaptureResolution(width: 1280, height: 720)
+        )
+        let project = RecordingProject(name: "Window Recording", source: source, duration: 12)
+
+        #expect(project.source == source)
+        #expect(project.source?.captureResolution == CaptureResolution(width: 1280, height: 720))
+    }
 }
