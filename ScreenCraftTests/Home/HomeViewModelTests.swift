@@ -53,6 +53,8 @@ struct HomeViewModelTests {
 
         #expect(viewModel.isRecordingWindow == false)
         #expect(viewModel.outputFilePath?.hasSuffix(".mov") == true)
+        #expect(viewModel.timelinePreview?.segments.count == 1)
+        #expect(viewModel.timelinePreview?.segments.first?.sourceLabel == "Auto")
         #expect(viewModel.canStopWindowRecording == false)
     }
 

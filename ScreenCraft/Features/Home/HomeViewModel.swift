@@ -38,6 +38,8 @@ final class HomeViewModel: ObservableObject {
     @Published private(set) var mouseEventDebugLines: [String] = []
     @Published private(set) var mouseEventSpikeStatusMessage = "Ready to record mouse events."
     @Published private(set) var mouseEventPermissionHelpMessage: String?
+    @Published private(set) var timelinePreview: TimelinePreview?
+    @Published private(set) var timelinePreviewProjectName: String?
     private var packageMouseEventSession: MouseEventRecordingSession?
     private var packageAudioSession: AudioRecordingSession?
 
@@ -209,6 +211,8 @@ final class HomeViewModel: ObservableObject {
 
             isRecordingWindow = false
             outputFilePath = packageProject.media.screenVideoURL?.path
+            timelinePreview = packageProject.timeline.preview
+            timelinePreviewProjectName = packageProject.name
             spikeStatusMessage = outputFilePath.map { "Saved recording to \($0)" } ?? "Recording stopped."
         } catch {
             spikeStatusMessage = error.localizedDescription

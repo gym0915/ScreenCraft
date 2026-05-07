@@ -5,6 +5,15 @@ import Foundation
 enum ZoomSegmentSource: String, Codable, Equatable {
     case manual
     case automatic
+
+    var previewLabel: String {
+        switch self {
+        case .manual:
+            return "Manual"
+        case .automatic:
+            return "Auto"
+        }
+    }
 }
 
 // ZoomSegment 只保存时间和目标区域，不直接持有视频帧或视图状态。

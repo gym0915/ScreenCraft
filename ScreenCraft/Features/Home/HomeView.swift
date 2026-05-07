@@ -17,6 +17,7 @@ struct HomeView: View {
                 captureConfigurationSection
                 microphoneSpikeSection
                 mouseEventSpikeSection
+                timelinePreviewSection
             }
             .padding(32)
             .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -364,6 +365,96 @@ struct HomeView: View {
         }
         .padding(12)
         .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var timelinePreviewSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Timeline Preview")
+                .font(.headline)
+
+            if let preview = viewModel.timelinePreview {
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(viewModel.timelinePreviewProjectName ?? "Latest Recording")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+
+                            Text("Duration \(preview.durationLabel) · Trim \(preview.trimLabel)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+
+                        Text("\(preview.segments.count) zoom")
+                            .font(.caption.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+
+                    timelineBar(preview)
+
+                    if preview.segments.isEmpty {
+                        Text("No zoom segments generated.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(preview.segments) { segment in
+                                zoomSegmentRow(segment)
+                            }
+                        }
+                    }
+                }
+                .padding(12)
+                .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 8))
+            } else {
+                Text("Record a source with mouse clicks to generate automatic zoom segments.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 8))
+            }
+        }
+        .frame(maxWidth: 720, alignment: .leading)
+    }
+
+    private func timelineBar(_ preview: TimelinePreview) -> some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(.secondary.opacity(0.16))
+
+                ForEach(preview.segments) { segment in
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(segment.sourceLabel == "Auto" ? Color.accentColor.opacity(0.82) : Color.orange.opacity(0.82))
+                        .frame(width: max(proxy.size.width * segment.widthFraction, 3))
+                        .offset(x: proxy.size.width * segment.startFraction)
+                        .accessibilityLabel("\(segment.sourceLabel) zoom \(segment.startLabel) to \(segment.endLabel)")
+                }
+            }
+        }
+        .frame(height: 24)
+        .accessibilityElement(children: .contain)
+    }
+
+    private func zoomSegmentRow(_ segment: TimelinePreviewSegment) -> some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(segment.sourceLabel == "Auto" ? Color.accentColor : Color.orange)
+                .frame(width: 7, height: 7)
+                .accessibilityHidden(true)
+
+            Text("\(segment.sourceLabel) · \(segment.startLabel)-\(segment.endLabel)")
+                .font(.caption.monospacedDigit())
+
+            Spacer()
+
+            Text(segment.scaleLabel)
+                .font(.caption.monospacedDigit())
+                .foregroundStyle(.secondary)
+        }
     }
 
     private func runSpikeAction(_ action: @escaping () async throws -> Void) {
