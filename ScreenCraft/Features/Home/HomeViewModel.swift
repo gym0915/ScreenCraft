@@ -200,6 +200,12 @@ final class HomeViewModel: ObservableObject {
             }
 
             try await environment.projectStore.save(packageProject, mouseEvents: mouseEvents)
+            if let zoomAnalysisConfiguration = Self.zoomAnalysisConfiguration(for: packageProject) {
+                packageProject = try await environment.projectStore.analyzeZoomSegments(
+                    for: packageProject,
+                    configuration: zoomAnalysisConfiguration
+                )
+            }
 
             isRecordingWindow = false
             outputFilePath = packageProject.media.screenVideoURL?.path
@@ -381,6 +387,19 @@ final class HomeViewModel: ObservableObject {
             origin: MouseEventLocation(x: geometry.originX, y: geometry.originY),
             size: MouseEventSize(width: geometry.width, height: geometry.height),
             backingScaleFactor: geometry.scale
+        )
+    }
+
+    private static func zoomAnalysisConfiguration(for project: RecordingProject) -> ZoomAnalysisConfiguration? {
+        guard let captureResolution = project.source?.captureResolution else {
+            return nil
+        }
+
+        return ZoomAnalysisConfiguration(
+            recordingSize: MouseEventSize(
+                width: Double(captureResolution.width),
+                height: Double(captureResolution.height)
+            )
         )
     }
 

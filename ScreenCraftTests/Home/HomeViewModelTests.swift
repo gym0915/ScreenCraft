@@ -72,6 +72,8 @@ struct HomeViewModelTests {
         #expect(savedProject.source?.id == "mock-window")
         #expect(savedProject.source?.kind == .window)
         #expect(savedProject.source?.captureResolution == CaptureResolution(width: 320, height: 240))
+        #expect(savedProject.timeline.zoomSegments.count == 1)
+        #expect(savedProject.timeline.zoomSegments.first?.source == .automatic)
     }
 
     @Test func selectedMicrophoneIsSavedIntoWindowRecordingPackage() async throws {

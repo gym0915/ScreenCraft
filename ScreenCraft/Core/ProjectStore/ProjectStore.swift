@@ -6,6 +6,10 @@ protocol ProjectStoring: AnyObject {
     func recentProjects() async throws -> [RecordingProject]
     func save(_ project: RecordingProject) async throws
     func save(_ project: RecordingProject, mouseEvents: [MouseEvent]) async throws
+    func analyzeZoomSegments(
+        for project: RecordingProject,
+        configuration: ZoomAnalysisConfiguration
+    ) async throws -> RecordingProject
 }
 
 @MainActor
@@ -74,6 +78,34 @@ final class FileSystemProjectStore: ProjectStoring {
             at: cacheURL.appendingPathComponent("preview", isDirectory: true),
             withIntermediateDirectories: true
         )
+    }
+
+    func analyzeZoomSegments(
+        for project: RecordingProject,
+        configuration: ZoomAnalysisConfiguration
+    ) async throws -> RecordingProject {
+        let packageURL = packageURL(for: project)
+        let manifestURL = packageURL.appendingPathComponent(Self.manifestFileName)
+        let data = try Data(contentsOf: manifestURL)
+        var project = try JSONDecoder.screenCraft.decode(RecordingProject.self, from: data)
+
+        guard let mouseEventsPath = project.media.mouseEventsPath else {
+            project.timeline.zoomSegments = []
+            try await save(project)
+            return project
+        }
+
+        let eventsURL = packageURL.appendingPathComponent(mouseEventsPath)
+        let eventsData = try Data(contentsOf: eventsURL)
+        let events = try JSONDecoder.screenCraft.decode([MouseEvent].self, from: eventsData)
+
+        let manualSegments = project.timeline.zoomSegments.filter { $0.source == .manual }
+        let automaticSegments = ZoomAnalyzer(configuration: configuration)
+            .segments(from: events)
+        project.timeline.zoomSegments = (manualSegments + automaticSegments)
+            .sorted { $0.start < $1.start }
+        try await save(project, mouseEvents: events)
+        return project
     }
 
     func packageURL(for projectID: UUID) -> URL {
@@ -151,6 +183,7 @@ private extension URL {
 final class MockProjectStore: ProjectStoring {
     // mock 用内存数组模拟最近项目列表，测试结束后自然丢弃状态。
     private var projects: [RecordingProject]
+    private var mouseEventsByProjectID: [UUID: [MouseEvent]] = [:]
 
     init(projects: [RecordingProject] = []) {
         // 允许测试注入初始项目，同时默认不读写磁盘。
@@ -167,5 +200,23 @@ final class MockProjectStore: ProjectStoring {
 
     func save(_ project: RecordingProject, mouseEvents: [MouseEvent]) async throws {
         projects.append(project)
+        mouseEventsByProjectID[project.id] = mouseEvents
+    }
+
+    func analyzeZoomSegments(
+        for project: RecordingProject,
+        configuration: ZoomAnalysisConfiguration
+    ) async throws -> RecordingProject {
+        guard let index = projects.lastIndex(where: { $0.id == project.id }) else {
+            throw CocoaError(.fileNoSuchFile)
+        }
+
+        let events = mouseEventsByProjectID[project.id] ?? []
+        let manualSegments = projects[index].timeline.zoomSegments.filter { $0.source == .manual }
+        let automaticSegments = ZoomAnalyzer(configuration: configuration)
+            .segments(from: events)
+        projects[index].timeline.zoomSegments = (manualSegments + automaticSegments)
+            .sorted { $0.start < $1.start }
+        return projects[index]
     }
 }
