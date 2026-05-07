@@ -32,4 +32,10 @@ struct AppEnvironmentTests {
         #expect(mouseEventCaptureRegion == .debugRetinaFixture)
         #expect(projects.isEmpty)
     }
+
+    @Test func spikeEnvironmentUsesFileSystemProjectStoreForRecordingPackages() {
+        let environment = AppEnvironment.spike
+
+        #expect(environment.projectStore is FileSystemProjectStore)
+    }
 }

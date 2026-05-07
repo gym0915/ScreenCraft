@@ -1,6 +1,6 @@
 import Foundation
 
-struct CaptureResolution: Equatable {
+struct CaptureResolution: Codable, Equatable {
     let width: Int
     let height: Int
 
@@ -9,7 +9,7 @@ struct CaptureResolution: Equatable {
     }
 }
 
-struct CaptureSourceGeometry: Equatable {
+struct CaptureSourceGeometry: Codable, Equatable {
     let originX: Double
     let originY: Double
     let width: Double
@@ -116,6 +116,13 @@ struct ScreenCaptureSource: Identifiable, Equatable {
 struct ScreenRecordingConfiguration: Equatable {
     let source: ScreenCaptureSource
     let outputDirectory: URL
+    let createdAt: Date
+
+    init(source: ScreenCaptureSource, outputDirectory: URL, createdAt: Date = Date()) {
+        self.source = source
+        self.outputDirectory = outputDirectory
+        self.createdAt = createdAt
+    }
 
     func outputFileURL(createdAt: Date = Date()) -> URL {
         let timestamp = Self.outputTimestampFormatter.string(from: createdAt)
@@ -134,6 +141,14 @@ struct ScreenRecordingConfiguration: Equatable {
     func screenVideoFileURL(createdAt: Date = Date()) -> URL {
         recordingPackageDirectory(createdAt: createdAt)
             .appendingPathComponent(Self.screenVideoRelativePath)
+    }
+
+    var packageDirectory: URL {
+        recordingPackageDirectory(createdAt: createdAt)
+    }
+
+    var screenVideoURL: URL {
+        screenVideoFileURL(createdAt: createdAt)
     }
 
     static let screenVideoRelativePath = "media/screen.mov"

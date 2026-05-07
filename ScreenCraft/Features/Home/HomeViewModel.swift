@@ -38,6 +38,8 @@ final class HomeViewModel: ObservableObject {
     @Published private(set) var mouseEventDebugLines: [String] = []
     @Published private(set) var mouseEventSpikeStatusMessage = "Ready to record mouse events."
     @Published private(set) var mouseEventPermissionHelpMessage: String?
+    private var packageMouseEventSession: MouseEventRecordingSession?
+    private var packageAudioSession: AudioRecordingSession?
 
     init(environment: AppEnvironment) {
         self.environment = environment
@@ -166,6 +168,15 @@ final class HomeViewModel: ObservableObject {
 
         do {
             try await environment.screenCaptureService.startRecording(configuration: configuration)
+            packageMouseEventSession = try? await environment.mouseEventService.startRecording(
+                captureRegion: Self.mouseEventCaptureRegion(for: selectedCaptureSource)
+            )
+            if selectedAudioInputDeviceID != nil {
+                packageAudioSession = try? await environment.audioInputService.startRecording(
+                    deviceID: selectedAudioInputDeviceID,
+                    outputDirectory: configuration.packageDirectory.appendingPathComponent("media", isDirectory: true)
+                )
+            }
             isRecordingWindow = true
             outputFilePath = nil
             permissionHelpMessage = nil
@@ -179,8 +190,19 @@ final class HomeViewModel: ObservableObject {
     func stopWindowRecording() async throws {
         do {
             let project = try await environment.screenCaptureService.stopRecording()
+            let mouseEvents = try await stopPackageMouseEventRecordingIfNeeded()
+            let microphoneAudioURL = try await stopPackageAudioRecordingIfNeeded()
+            var packageProject = project
+            packageProject.media.mouseEventsPath = "events/mouse-events.json"
+            if let microphoneAudioURL {
+                packageProject.media.microphoneAudioURL = microphoneAudioURL
+                packageProject.media.microphoneAudioPath = "media/microphone.m4a"
+            }
+
+            try await environment.projectStore.save(packageProject, mouseEvents: mouseEvents)
+
             isRecordingWindow = false
-            outputFilePath = project.media.screenVideoURL?.path
+            outputFilePath = packageProject.media.screenVideoURL?.path
             spikeStatusMessage = outputFilePath.map { "Saved recording to \($0)" } ?? "Recording stopped."
         } catch {
             spikeStatusMessage = error.localizedDescription
@@ -317,6 +339,51 @@ final class HomeViewModel: ObservableObject {
         )
     }
 
+    private func stopPackageMouseEventRecordingIfNeeded() async throws -> [MouseEvent] {
+        guard packageMouseEventSession != nil else {
+            return await environment.mouseEventService.recordedEvents()
+        }
+
+        packageMouseEventSession = nil
+        let result = try await environment.mouseEventService.stopRecording()
+        mouseEventCount = result.events.count
+        mouseEventDebugLines = result.events.map(Self.debugLine(for:))
+        return result.events
+    }
+
+    private func stopPackageAudioRecordingIfNeeded() async throws -> URL? {
+        guard let packageAudioSession else {
+            return nil
+        }
+
+        self.packageAudioSession = nil
+        let result = try await environment.audioInputService.stopRecording()
+        let microphoneURL = packageAudioSession.outputURL
+            .deletingLastPathComponent()
+            .appendingPathComponent("microphone.m4a")
+
+        if FileManager.default.fileExists(atPath: result.session.outputURL.path) {
+            if FileManager.default.fileExists(atPath: microphoneURL.path) {
+                try FileManager.default.removeItem(at: microphoneURL)
+            }
+            try FileManager.default.moveItem(at: result.session.outputURL, to: microphoneURL)
+        }
+
+        return microphoneURL
+    }
+
+    private static func mouseEventCaptureRegion(for source: ScreenCaptureSource) -> MouseEventCaptureRegion {
+        guard let geometry = source.geometry else {
+            return .mainDisplay()
+        }
+
+        return MouseEventCaptureRegion(
+            origin: MouseEventLocation(x: geometry.originX, y: geometry.originY),
+            size: MouseEventSize(width: geometry.width, height: geometry.height),
+            backingScaleFactor: geometry.scale
+        )
+    }
+
     static let screenRecordingPermissionHelp = "System Settings -> Privacy & Security -> Screen & System Audio Recording"
     static let screenRecordingPermissionURL = URL(
         string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
@@ -326,9 +393,7 @@ final class HomeViewModel: ObservableObject {
         string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
     )!
 
-    private static let defaultSpikeOutputDirectory = FileManager.default.temporaryDirectory
-        .appendingPathComponent("ScreenCraft", isDirectory: true)
-        .appendingPathComponent("WindowCaptureSpike", isDirectory: true)
+    private static let defaultSpikeOutputDirectory = AppEnvironment.recordingPackageRootDirectory
 
     private static let defaultAudioSpikeOutputDirectory = FileManager.default.temporaryDirectory
         .appendingPathComponent("ScreenCraft", isDirectory: true)

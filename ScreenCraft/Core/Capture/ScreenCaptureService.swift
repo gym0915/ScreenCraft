@@ -100,7 +100,8 @@ final class MockScreenCaptureService: ScreenCaptureServicing {
             throw ScreenCaptureServiceError.notRecording
         }
 
-        let outputURL = activeConfiguration.screenVideoFileURL(createdAt: Date(timeIntervalSince1970: 0))
+        let outputURL = activeConfiguration.screenVideoURL
+        let sourceMetadata = RecordingSourceMetadata(source: activeConfiguration.source)
         self.activeConfiguration = nil
         state = .idle
 
@@ -110,6 +111,7 @@ final class MockScreenCaptureService: ScreenCaptureServicing {
                 screenVideoURL: outputURL,
                 screenVideoPath: ScreenRecordingConfiguration.screenVideoRelativePath
             ),
+            source: sourceMetadata,
             duration: 0
         )
     }

@@ -56,6 +56,39 @@ struct HomeViewModelTests {
         #expect(viewModel.canStopWindowRecording == false)
     }
 
+    @Test func stoppingWindowRecordingSavesEditablePackageProject() async throws {
+        let environment = AppEnvironment.mock
+        let viewModel = HomeViewModel(environment: environment)
+
+        try await viewModel.refreshCaptureSources()
+        try await viewModel.startSelectedWindowRecording()
+        try await viewModel.stopWindowRecording()
+
+        let projects = try await environment.projectStore.recentProjects()
+        let savedProject = try #require(projects.last)
+
+        #expect(savedProject.media.screenVideoPath == "media/screen.mov")
+        #expect(savedProject.media.mouseEventsPath == "events/mouse-events.json")
+        #expect(savedProject.source?.id == "mock-window")
+        #expect(savedProject.source?.kind == .window)
+        #expect(savedProject.source?.captureResolution == CaptureResolution(width: 320, height: 240))
+    }
+
+    @Test func selectedMicrophoneIsSavedIntoWindowRecordingPackage() async throws {
+        let environment = AppEnvironment.mock
+        let viewModel = HomeViewModel(environment: environment)
+
+        try await viewModel.refreshCaptureSources()
+        try await viewModel.refreshAudioInputDevices()
+        try await viewModel.startSelectedWindowRecording()
+        try await viewModel.stopWindowRecording()
+
+        let projects = try await environment.projectStore.recentProjects()
+        let savedProject = try #require(projects.last)
+
+        #expect(savedProject.media.microphoneAudioPath == "media/microphone.m4a")
+    }
+
     @Test func captureConfigurationSummaryUpdatesWhenSelectingRegion() async throws {
         let viewModel = HomeViewModel(environment: .mock)
 

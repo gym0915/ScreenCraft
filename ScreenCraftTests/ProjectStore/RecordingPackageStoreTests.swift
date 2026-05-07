@@ -80,6 +80,49 @@ struct RecordingPackageStoreTests {
         #expect(!FileManager.default.fileExists(atPath: stalePreview.path))
     }
 
+    @Test func saveWritesManifestAndMouseEventsIntoExistingMediaPackage() async throws {
+        let rootDirectory = try temporaryRootDirectory()
+        let packageURL = rootDirectory.appendingPathComponent("window-42-20260507-000000.screencraft", isDirectory: true)
+        let mediaDirectory = packageURL.appendingPathComponent("media", isDirectory: true)
+        try FileManager.default.createDirectory(at: mediaDirectory, withIntermediateDirectories: true)
+        let screenVideoURL = mediaDirectory.appendingPathComponent("screen.mov")
+        try Data("screen".utf8).write(to: screenVideoURL)
+
+        let store = FileSystemProjectStore(rootDirectory: rootDirectory)
+        let project = RecordingProject(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000604")!,
+            name: "Integrated Package",
+            createdAt: Date(timeIntervalSince1970: 400),
+            media: ProjectMedia(
+                screenVideoURL: screenVideoURL,
+                screenVideoPath: "media/screen.mov",
+                mouseEventsPath: "events/mouse-events.json"
+            ),
+            duration: 5
+        )
+        let events = [
+            MouseEvent(
+                kind: .leftClick,
+                timestamp: 1.25,
+                globalLocation: MouseEventLocation(x: 120, y: 230),
+                recordingLocation: MouseEventLocation(x: 40, y: 60)
+            )
+        ]
+
+        try await store.save(project, mouseEvents: events)
+
+        #expect(FileManager.default.fileExists(atPath: packageURL.appendingPathComponent("project.json").path))
+        #expect(FileManager.default.fileExists(atPath: packageURL.appendingPathComponent("events/mouse-events.json").path))
+        #expect(!FileManager.default.fileExists(atPath: store.packageURL(for: project.id).appendingPathComponent("project.json").path))
+
+        let reopened = try await store.recentProjects()
+        #expect(reopened == [project])
+
+        let eventData = try Data(contentsOf: packageURL.appendingPathComponent("events/mouse-events.json"))
+        let decodedEvents = try JSONDecoder.screenCraft.decode([MouseEvent].self, from: eventData)
+        #expect(decodedEvents == events)
+    }
+
     private func temporaryRootDirectory() throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("ScreenCraftRecordingPackageTests", isDirectory: true)
