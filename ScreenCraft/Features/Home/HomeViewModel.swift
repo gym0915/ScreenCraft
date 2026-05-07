@@ -48,7 +48,28 @@ final class HomeViewModel: ObservableObject {
     }
 
     var canStartWindowRecording: Bool {
-        selectedCaptureSource?.kind == .window && !isRecordingWindow
+        selectedCaptureSource != nil && !isRecordingWindow
+    }
+
+    var selectedCaptureSourceKindLabel: String {
+        switch selectedCaptureSource?.kind {
+        case .display:
+            return "Display"
+        case .window:
+            return "Window"
+        case .region:
+            return "Region"
+        case nil:
+            return "None"
+        }
+    }
+
+    var selectedCaptureResolutionLabel: String {
+        selectedCaptureSource?.captureResolutionLabel ?? "Unknown"
+    }
+
+    var selectedCaptureQualityWarningMessage: String? {
+        selectedCaptureSource?.qualityWarning?.message
     }
 
     var canStopWindowRecording: Bool {
