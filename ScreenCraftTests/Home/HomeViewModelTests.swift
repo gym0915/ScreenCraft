@@ -32,9 +32,16 @@ struct HomeViewModelTests {
 
         try await viewModel.refreshCaptureSources()
 
-        #expect(viewModel.captureSources.map(\.displayLabel) == ["ScreenCraft - Mock Window"])
+        #expect(viewModel.captureSources.map(\.displayLabel) == [
+            "Mock Display",
+            "ScreenCraft - Mock Window",
+            "Mock Region"
+        ])
         #expect(viewModel.selectedCaptureSourceID == "mock-window")
         #expect(viewModel.canStartWindowRecording == true)
+        #expect(viewModel.selectedCaptureSourceKindLabel == "Window")
+        #expect(viewModel.selectedCaptureResolutionLabel == "320 x 240")
+        #expect(viewModel.selectedCaptureQualityWarningMessage == "Capture source is 320 x 240. Enlarge the window before recording for a sharper 1080p export.")
 
         try await viewModel.startSelectedWindowRecording()
 
@@ -47,6 +54,18 @@ struct HomeViewModelTests {
         #expect(viewModel.isRecordingWindow == false)
         #expect(viewModel.outputFilePath?.hasSuffix(".mov") == true)
         #expect(viewModel.canStopWindowRecording == false)
+    }
+
+    @Test func captureConfigurationSummaryUpdatesWhenSelectingRegion() async throws {
+        let viewModel = HomeViewModel(environment: .mock)
+
+        try await viewModel.refreshCaptureSources()
+        viewModel.selectedCaptureSourceID = "mock-region"
+
+        #expect(viewModel.selectedCaptureSourceKindLabel == "Region")
+        #expect(viewModel.selectedCaptureResolutionLabel == "1920 x 1080")
+        #expect(viewModel.selectedCaptureQualityWarningMessage == nil)
+        #expect(viewModel.canStartWindowRecording == true)
     }
 
     @Test func microphoneSpikeFlowRefreshesDevicesAndPublishesOutputPath() async throws {

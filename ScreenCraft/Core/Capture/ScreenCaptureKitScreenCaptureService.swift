@@ -8,6 +8,7 @@ final class ScreenCaptureKitScreenCaptureService: NSObject, ScreenCaptureServici
     private var state: ScreenRecordingState = .idle
     private var windowsBySourceID: [String: SCWindow] = [:]
     private var displaysBySourceID: [String: SCDisplay] = [:]
+    private var regionsBySourceID: [String: RegionCaptureTarget] = [:]
     private var activeStream: SCStream?
     private var activeStreamOutput: ScreenCaptureKitStreamOutput?
     private var activeRecordingOutput: SCRecordingOutput?
@@ -41,9 +42,23 @@ final class ScreenCaptureKitScreenCaptureService: NSObject, ScreenCaptureServici
                 id: Self.sourceID(for: display),
                 kind: .display,
                 title: "Display \(display.displayID)",
-                appName: nil
+                appName: nil,
+                geometry: Self.geometry(for: display)
             )
             displaysBySourceID[source.id] = display
+            return source
+        }
+
+        let regions = content.displays.map { display in
+            let target = Self.defaultRegionTarget(for: display)
+            let source = ScreenCaptureSource(
+                id: Self.regionSourceID(for: display),
+                kind: .region,
+                title: "Region on Display \(display.displayID)",
+                appName: nil,
+                geometry: target.geometry
+            )
+            regionsBySourceID[source.id] = target
             return source
         }
 
@@ -53,11 +68,13 @@ final class ScreenCaptureKitScreenCaptureService: NSObject, ScreenCaptureServici
             }
             .map { window in
                 let title = window.title?.isEmpty == false ? window.title! : "Untitled Window"
+                let filter = SCContentFilter(desktopIndependentWindow: window)
                 let source = ScreenCaptureSource(
                     id: Self.sourceID(for: window),
                     kind: .window,
                     title: title,
-                    appName: window.owningApplication?.applicationName
+                    appName: window.owningApplication?.applicationName,
+                    geometry: Self.geometry(for: window, filter: filter)
                 )
                 windowsBySourceID[source.id] = window
                 return source
@@ -67,23 +84,19 @@ final class ScreenCaptureKitScreenCaptureService: NSObject, ScreenCaptureServici
             }
 
         state = activeStream == nil ? .idle : .recording
-        return displays + windows
+        return displays + windows + regions
     }
 
     func startRecording(configuration: ScreenRecordingConfiguration) async throws {
         guard state != .recording else {
             throw ScreenCaptureServiceError.alreadyRecording
         }
-        guard configuration.source.kind == .window else {
-            throw ScreenCaptureServiceError.displayRecordingUnsupported
-        }
 
-        let window = try await window(for: configuration.source)
-        let outputURL = configuration.outputFileURL()
+        let outputURL = configuration.screenVideoFileURL()
         try prepareOutputURL(outputURL)
-
-        let filter = SCContentFilter(desktopIndependentWindow: window)
-        let streamConfiguration = streamConfiguration(for: window, filter: filter)
+        let captureSetup = try await captureSetup(for: configuration.source)
+        let filter = captureSetup.filter
+        let streamConfiguration = captureSetup.configuration
         let stream = SCStream(filter: filter, configuration: streamConfiguration, delegate: nil)
         let streamOutput = ScreenCaptureKitStreamOutput()
 
@@ -137,10 +150,36 @@ final class ScreenCaptureKitScreenCaptureService: NSObject, ScreenCaptureServici
         cleanupRecordingState()
 
         return RecordingProject(
-            name: "Window Capture Spike",
-            media: ProjectMedia(screenVideoURL: activeOutputURL),
+            name: "Capture Configuration Recording",
+            media: ProjectMedia(
+                screenVideoURL: activeOutputURL,
+                screenVideoPath: ScreenRecordingConfiguration.screenVideoRelativePath
+            ),
             duration: duration
         )
+    }
+
+    private func captureSetup(for source: ScreenCaptureSource) async throws -> CaptureSetup {
+        switch source.kind {
+        case .window:
+            let window = try await window(for: source)
+            let filter = SCContentFilter(desktopIndependentWindow: window)
+            return CaptureSetup(filter: filter, configuration: streamConfiguration(for: filter))
+        case .display:
+            let display = try await display(for: source)
+            let filter = SCContentFilter(display: display, excludingWindows: [])
+            return CaptureSetup(
+                filter: filter,
+                configuration: streamConfiguration(for: source)
+            )
+        case .region:
+            let target = try await region(for: source)
+            let filter = SCContentFilter(display: target.display, excludingWindows: [])
+            return CaptureSetup(
+                filter: filter,
+                configuration: streamConfiguration(for: source, sourceRect: target.sourceRect)
+            )
+        }
     }
 
     private func window(for source: ScreenCaptureSource) async throws -> SCWindow {
@@ -157,6 +196,34 @@ final class ScreenCaptureKitScreenCaptureService: NSObject, ScreenCaptureServici
         return refreshedWindow
     }
 
+    private func display(for source: ScreenCaptureSource) async throws -> SCDisplay {
+        if let cachedDisplay = displaysBySourceID[source.id] {
+            return cachedDisplay
+        }
+
+        _ = try await availableSources()
+
+        guard let refreshedDisplay = displaysBySourceID[source.id] else {
+            throw ScreenCaptureServiceError.sourceUnavailable
+        }
+
+        return refreshedDisplay
+    }
+
+    private func region(for source: ScreenCaptureSource) async throws -> RegionCaptureTarget {
+        if let cachedRegion = regionsBySourceID[source.id] {
+            return cachedRegion
+        }
+
+        _ = try await availableSources()
+
+        guard let refreshedRegion = regionsBySourceID[source.id] else {
+            throw ScreenCaptureServiceError.sourceUnavailable
+        }
+
+        return refreshedRegion
+    }
+
     private func prepareOutputURL(_ outputURL: URL) throws {
         let directory = outputURL.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -166,14 +233,11 @@ final class ScreenCaptureKitScreenCaptureService: NSObject, ScreenCaptureServici
         }
     }
 
-    private func streamConfiguration(
-        for window: SCWindow,
-        filter: SCContentFilter
-    ) -> SCStreamConfiguration {
+    private func streamConfiguration(for filter: SCContentFilter) -> SCStreamConfiguration {
         let configuration = SCStreamConfiguration()
         let scale = CGFloat(max(filter.pointPixelScale, 1))
-        let width = max(2, Int((window.frame.width * scale).rounded()))
-        let height = max(2, Int((window.frame.height * scale).rounded()))
+        let width = max(2, Int((filter.contentRect.width * scale).rounded()))
+        let height = max(2, Int((filter.contentRect.height * scale).rounded()))
 
         configuration.width = width
         configuration.height = height
@@ -189,6 +253,30 @@ final class ScreenCaptureKitScreenCaptureService: NSObject, ScreenCaptureServici
         return configuration
     }
 
+    private func streamConfiguration(
+        for source: ScreenCaptureSource,
+        sourceRect: CGRect? = nil
+    ) -> SCStreamConfiguration {
+        let configuration = SCStreamConfiguration()
+        let resolution = source.captureResolution ?? CaptureResolution(width: 2, height: 2)
+
+        configuration.width = max(2, resolution.width)
+        configuration.height = max(2, resolution.height)
+        configuration.minimumFrameInterval = CMTime(value: 1, timescale: 30)
+        configuration.queueDepth = 5
+        configuration.scalesToFit = true
+        configuration.showsCursor = true
+        configuration.capturesAudio = false
+        configuration.captureMicrophone = false
+        configuration.streamName = "ScreenCraft Capture Configuration"
+
+        if let sourceRect {
+            configuration.sourceRect = sourceRect
+        }
+
+        return configuration
+    }
+
     private func cleanupRecordingState() {
         activeStream = nil
         activeStreamOutput = nil
@@ -199,6 +287,53 @@ final class ScreenCaptureKitScreenCaptureService: NSObject, ScreenCaptureServici
         state = .idle
     }
 
+    private static func geometry(for display: SCDisplay) -> CaptureSourceGeometry {
+        CaptureSourceGeometry(
+            originX: 0,
+            originY: 0,
+            width: Double(display.width),
+            height: Double(display.height),
+            scale: 1
+        )
+    }
+
+    private static func geometry(for window: SCWindow, filter: SCContentFilter) -> CaptureSourceGeometry {
+        let scale = Double(max(filter.pointPixelScale, 1))
+        let windowFrame = CaptureSourceGeometry(
+            originX: window.frame.origin.x,
+            originY: window.frame.origin.y,
+            width: window.frame.width,
+            height: window.frame.height,
+            scale: scale
+        )
+        let contentRect = CaptureSourceGeometry(
+            originX: filter.contentRect.origin.x,
+            originY: filter.contentRect.origin.y,
+            width: filter.contentRect.width,
+            height: filter.contentRect.height,
+            scale: scale
+        )
+
+        return .windowGeometry(windowFrame: windowFrame, filterContentRect: contentRect)
+    }
+
+    private static func defaultRegionTarget(for display: SCDisplay) -> RegionCaptureTarget {
+        let regionWidth = min(Double(display.width), 1920)
+        let regionHeight = min(Double(display.height), 1080)
+        let originX = max(0, (Double(display.width) - regionWidth) / 2)
+        let originY = max(0, (Double(display.height) - regionHeight) / 2)
+        let sourceRect = CGRect(x: originX, y: originY, width: regionWidth, height: regionHeight)
+        let geometry = CaptureSourceGeometry(
+            originX: originX,
+            originY: originY,
+            width: regionWidth,
+            height: regionHeight,
+            scale: 1
+        )
+
+        return RegionCaptureTarget(display: display, sourceRect: sourceRect, geometry: geometry)
+    }
+
     private static func sourceID(for display: SCDisplay) -> String {
         "display-\(display.displayID)"
     }
@@ -206,6 +341,21 @@ final class ScreenCaptureKitScreenCaptureService: NSObject, ScreenCaptureServici
     private static func sourceID(for window: SCWindow) -> String {
         "window-\(window.windowID)"
     }
+
+    private static func regionSourceID(for display: SCDisplay) -> String {
+        "region-display-\(display.displayID)"
+    }
+}
+
+private struct CaptureSetup {
+    let filter: SCContentFilter
+    let configuration: SCStreamConfiguration
+}
+
+private struct RegionCaptureTarget {
+    let display: SCDisplay
+    let sourceRect: CGRect
+    let geometry: CaptureSourceGeometry
 }
 
 private final class ScreenCaptureKitStreamOutput: NSObject, SCStreamOutput {

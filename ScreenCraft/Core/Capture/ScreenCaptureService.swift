@@ -10,7 +10,6 @@ protocol ScreenCaptureServicing {
 
 enum ScreenCaptureServiceError: LocalizedError, Equatable {
     case sourceUnavailable
-    case displayRecordingUnsupported
     case alreadyRecording
     case notRecording
     case permissionDenied(String)
@@ -20,8 +19,6 @@ enum ScreenCaptureServiceError: LocalizedError, Equatable {
         switch self {
         case .sourceUnavailable:
             return "Selected capture source is no longer available."
-        case .displayRecordingUnsupported:
-            return "This spike only supports recording a single window."
         case .alreadyRecording:
             return "A window recording is already in progress."
         case .notRecording:
@@ -48,10 +45,43 @@ final class MockScreenCaptureService: ScreenCaptureServicing {
         // mock source 只服务 UI 状态机测试，不对应任何真实窗口。
         [
             ScreenCaptureSource(
+                id: "mock-display",
+                kind: .display,
+                title: "Mock Display",
+                appName: nil,
+                geometry: CaptureSourceGeometry(
+                    originX: 0,
+                    originY: 0,
+                    width: 1512,
+                    height: 982,
+                    scale: 2
+                )
+            ),
+            ScreenCaptureSource(
                 id: "mock-window",
                 kind: .window,
                 title: "Mock Window",
-                appName: "ScreenCraft"
+                appName: "ScreenCraft",
+                geometry: CaptureSourceGeometry(
+                    originX: 80,
+                    originY: 120,
+                    width: 320,
+                    height: 240,
+                    scale: 1
+                )
+            ),
+            ScreenCaptureSource(
+                id: "mock-region",
+                kind: .region,
+                title: "Mock Region",
+                appName: nil,
+                geometry: CaptureSourceGeometry(
+                    originX: 100,
+                    originY: 100,
+                    width: 960,
+                    height: 540,
+                    scale: 2
+                )
             )
         ]
     }
@@ -70,13 +100,16 @@ final class MockScreenCaptureService: ScreenCaptureServicing {
             throw ScreenCaptureServiceError.notRecording
         }
 
-        let outputURL = activeConfiguration.outputFileURL(createdAt: Date(timeIntervalSince1970: 0))
+        let outputURL = activeConfiguration.screenVideoFileURL(createdAt: Date(timeIntervalSince1970: 0))
         self.activeConfiguration = nil
         state = .idle
 
         return RecordingProject(
-            name: "Window Capture Spike",
-            media: ProjectMedia(screenVideoURL: outputURL),
+            name: "Capture Configuration Recording",
+            media: ProjectMedia(
+                screenVideoURL: outputURL,
+                screenVideoPath: ScreenRecordingConfiguration.screenVideoRelativePath
+            ),
             duration: 0
         )
     }

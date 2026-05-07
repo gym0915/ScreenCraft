@@ -1,5 +1,52 @@
 import Foundation
 
+struct CaptureResolution: Equatable {
+    let width: Int
+    let height: Int
+
+    var label: String {
+        "\(width) x \(height)"
+    }
+}
+
+struct CaptureSourceGeometry: Equatable {
+    let originX: Double
+    let originY: Double
+    let width: Double
+    let height: Double
+    let scale: Double
+
+    var captureResolution: CaptureResolution {
+        let safeScale = max(scale, 1)
+
+        return CaptureResolution(
+            width: max(2, Int((width * safeScale).rounded())),
+            height: max(2, Int((height * safeScale).rounded()))
+        )
+    }
+
+    static func windowGeometry(
+        windowFrame: CaptureSourceGeometry,
+        filterContentRect: CaptureSourceGeometry
+    ) -> CaptureSourceGeometry {
+        let frameArea = windowFrame.width * windowFrame.height
+        let contentArea = filterContentRect.width * filterContentRect.height
+
+        return contentArea > frameArea ? filterContentRect : windowFrame
+    }
+}
+
+enum CaptureQualityWarning: Equatable {
+    case sourceTooSmall(actual: CaptureResolution, minimum: CaptureResolution)
+
+    var message: String {
+        switch self {
+        case .sourceTooSmall(let actual, _):
+            return "Capture source is \(actual.label). Enlarge the window before recording for a sharper 1080p export."
+        }
+    }
+}
+
 // ScreenRecordingState 先描述录制服务的粗粒度状态，后续 Spike 可在不改 UI 的情况下扩展实现。
 enum ScreenRecordingState: Equatable {
     case idle
@@ -13,12 +60,28 @@ struct ScreenCaptureSource: Identifiable, Equatable {
     enum Kind: Equatable {
         case display
         case window
+        case region
     }
 
     let id: String
     let kind: Kind
     let title: String
     let appName: String?
+    let geometry: CaptureSourceGeometry?
+
+    init(
+        id: String,
+        kind: Kind,
+        title: String,
+        appName: String?,
+        geometry: CaptureSourceGeometry? = nil
+    ) {
+        self.id = id
+        self.kind = kind
+        self.title = title
+        self.appName = appName
+        self.geometry = geometry
+    }
 
     var displayLabel: String {
         guard let appName, !appName.isEmpty else {
@@ -26,6 +89,27 @@ struct ScreenCaptureSource: Identifiable, Equatable {
         }
 
         return "\(appName) - \(title)"
+    }
+
+    var captureResolution: CaptureResolution? {
+        geometry?.captureResolution
+    }
+
+    var captureResolutionLabel: String {
+        captureResolution?.label ?? "Unknown"
+    }
+
+    var qualityWarning: CaptureQualityWarning? {
+        guard kind == .window, let captureResolution else {
+            return nil
+        }
+
+        let minimum = CaptureResolution(width: 1280, height: 720)
+        guard captureResolution.width < minimum.width || captureResolution.height < minimum.height else {
+            return nil
+        }
+
+        return .sourceTooSmall(actual: captureResolution, minimum: minimum)
     }
 }
 
@@ -39,6 +123,20 @@ struct ScreenRecordingConfiguration: Equatable {
 
         return outputDirectory.appendingPathComponent(filename)
     }
+
+    func recordingPackageDirectory(createdAt: Date = Date()) -> URL {
+        let timestamp = Self.outputTimestampFormatter.string(from: createdAt)
+        let packageName = "\(source.id)-\(timestamp).screencraft"
+
+        return outputDirectory.appendingPathComponent(packageName, isDirectory: true)
+    }
+
+    func screenVideoFileURL(createdAt: Date = Date()) -> URL {
+        recordingPackageDirectory(createdAt: createdAt)
+            .appendingPathComponent(Self.screenVideoRelativePath)
+    }
+
+    static let screenVideoRelativePath = "media/screen.mov"
 
     private static let outputTimestampFormatter: DateFormatter = {
         let formatter = DateFormatter()

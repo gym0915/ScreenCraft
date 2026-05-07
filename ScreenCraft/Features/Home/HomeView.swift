@@ -14,7 +14,7 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 24) {
                 header
                 permissionSection
-                spikeSection
+                captureConfigurationSection
                 microphoneSpikeSection
                 mouseEventSpikeSection
             }
@@ -82,9 +82,9 @@ struct HomeView: View {
             .accessibilityHidden(true)
     }
 
-    private var spikeSection: some View {
+    private var captureConfigurationSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Window Capture Spike")
+            Text("Capture Configuration")
                 .font(.headline)
 
             HStack(spacing: 10) {
@@ -93,7 +93,7 @@ struct HomeView: View {
                         try await viewModel.refreshCaptureSources()
                     }
                 } label: {
-                    Label("Refresh Windows", systemImage: "arrow.clockwise")
+                    Label("Refresh Sources", systemImage: "arrow.clockwise")
                 }
                 .disabled(viewModel.isRefreshingCaptureSources || viewModel.isRecordingWindow)
 
@@ -102,7 +102,7 @@ struct HomeView: View {
                         try await viewModel.startSelectedWindowRecording()
                     }
                 } label: {
-                    Label("Start Recording Selected Window", systemImage: "record.circle")
+                    Label("Start Recording Source", systemImage: "record.circle")
                 }
                 .disabled(!viewModel.canStartWindowRecording)
 
@@ -128,16 +128,16 @@ struct HomeView: View {
                 .font(.subheadline)
                 .fontWeight(.medium)
 
-            Picker("Window", selection: $viewModel.selectedCaptureSourceID) {
+            Picker("Source", selection: $viewModel.selectedCaptureSourceID) {
                 if viewModel.captureSources.isEmpty {
-                    Text("No windows loaded").tag(String?.none)
+                    Text("No sources loaded").tag(String?.none)
                 }
 
-                ForEach(viewModel.captureSources.filter { $0.kind == .window }) { source in
-                    Text(source.displayLabel).tag(Optional(source.id))
+                ForEach(viewModel.captureSources) { source in
+                    Text("\(sourceKindLabel(for: source.kind)): \(source.displayLabel)")
+                        .tag(Optional(source.id))
                 }
             }
-            .labelsHidden()
             .frame(maxWidth: 520, alignment: .leading)
         }
     }
@@ -148,6 +148,21 @@ struct HomeView: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Source: \(viewModel.selectedCaptureSourceKindLabel)")
+                Text("Capture Resolution: \(viewModel.selectedCaptureResolutionLabel)")
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .textSelection(.enabled)
+
+            if let qualityWarning = viewModel.selectedCaptureQualityWarningMessage {
+                Text(qualityWarning)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .textSelection(.enabled)
+            }
 
             if let outputFilePath = viewModel.outputFilePath {
                 Text(outputFilePath)
@@ -173,6 +188,17 @@ struct HomeView: View {
         }
         .padding(12)
         .background(.quaternary.opacity(0.25), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private func sourceKindLabel(for kind: ScreenCaptureSource.Kind) -> String {
+        switch kind {
+        case .display:
+            return "Display"
+        case .window:
+            return "Window"
+        case .region:
+            return "Region"
+        }
     }
 
     private var microphoneSpikeSection: some View {
