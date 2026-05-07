@@ -13,6 +13,18 @@ struct RecordingProjectTests {
         #expect(media.cameraVideoURL == nil)
     }
 
+    @Test func projectMediaStoresPackageRelativePaths() {
+        let media = ProjectMedia(
+            screenVideoPath: "media/screen.mov",
+            microphoneAudioPath: "media/microphone.m4a",
+            mouseEventsPath: "events/mouse-events.json"
+        )
+
+        #expect(media.screenVideoPath == "media/screen.mov")
+        #expect(media.microphoneAudioPath == "media/microphone.m4a")
+        #expect(media.mouseEventsPath == "events/mouse-events.json")
+    }
+
     @Test func recordingProjectStartsWithDefaultMediaAndTimeline() {
         // 便捷初始化应生成可编辑项目，同时保持 camera 轨道为空。
         let project = RecordingProject(name: "Untitled", duration: 8)

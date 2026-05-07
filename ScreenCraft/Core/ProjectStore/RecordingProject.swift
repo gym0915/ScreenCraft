@@ -6,15 +6,24 @@ struct ProjectMedia: Codable, Equatable {
     var microphoneAudioURL: URL?
     // camera 只作为后续能力预留，当前 UI 不提供摄像头录制入口。
     var cameraVideoURL: URL?
+    var screenVideoPath: String?
+    var microphoneAudioPath: String?
+    var mouseEventsPath: String?
 
     init(
         screenVideoURL: URL? = nil,
         microphoneAudioURL: URL? = nil,
-        cameraVideoURL: URL? = nil
+        cameraVideoURL: URL? = nil,
+        screenVideoPath: String? = nil,
+        microphoneAudioPath: String? = nil,
+        mouseEventsPath: String? = nil
     ) {
         self.screenVideoURL = screenVideoURL
         self.microphoneAudioURL = microphoneAudioURL
         self.cameraVideoURL = cameraVideoURL
+        self.screenVideoPath = screenVideoPath
+        self.microphoneAudioPath = microphoneAudioPath
+        self.mouseEventsPath = mouseEventsPath
     }
 }
 
