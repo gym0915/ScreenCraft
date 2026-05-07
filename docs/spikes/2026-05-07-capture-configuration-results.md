@@ -49,5 +49,8 @@ display source 当前使用 ScreenCaptureKit 的 display pixel width/height 作�
   - 验收文件：`/Users/steve/Library/Containers/com.steve.screencraft/Data/tmp/ScreenCraft/WindowCaptureSpike/region-display-2-20260507-025314.screencraft/media/screen.mov`
   - 用户手动验证：可以录制，可以播放。
   - `ffprobe` 元数据：H.264，1920x1080，84.55 秒，约 17 MB。
-- [ ] Retina 外接多显示器下刷新 source，确认 display/window/region resolution 文案符合预期。
-- [ ] 缩小窗口到低于 `1280 x 720`，确认 UI 显示低分辨率提示。
+- [x] Retina 外接多显示器下刷新 source，确认 display/window/region resolution 文案符合预期。
+  - 用户手动验证：内建 Retina 与 DELL U3223QE 外接 4K 显示器下刷新 source，展开窗口时 resolution 文案符合当前窗口和显示器状态。
+  - Stage Manager / 前台调度侧边窗口会按缩略状态计算 capture resolution；录制前必须将目标窗口恢复到前台展开状态。
+- [x] 缩小窗口到低于 `1280 x 720`，确认 UI 显示低分辨率提示。
+  - 用户手动验证：窗口缩小或被前台调度收纳到侧边时，UI 显示低分辨率 warning，例如 `294 x 194` 并提示放大窗口后再录制。
